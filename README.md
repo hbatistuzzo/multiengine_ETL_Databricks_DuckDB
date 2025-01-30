@@ -61,7 +61,24 @@ Spark itself appeared as an open-sourcer processing solution to gain space in th
 
 </div>
 
+On the (paid) enterprise version of Databricks, you can customize your cluster: determine the runtime version (e.g. 15.4 LTS (Scala 2.12, Spark 3.5.0)) and the Worker/Driver types (how much memory? how many cores"? minimum and maximum number of workers/drivers?). In the live example, both are m4.large (8GB Memory, 4 Cores), a cheap option. It doesn't use Photon acceleration, it enables auto-scaling and it turns off after 1 hour (ideally 10 minutes for our use-cases). Max spot price can be lowered up to 90% to save some money, after that it starts impacting processing. In the example, we have 1 driver node and 2 executors (worker nodes). Each node is set according to the number of VCPU's e.g. if I have 2 worker machines with 8GB Memory and 2 cores each, I can paralelize tasks 4 times.
 
+![alt text](images/cores.png)
+
+
+- **Driver**: the brain, the manager, the orchestrator, the master node, the single interface between my code and the clusters - my code _never_ reaches a worker directly - and part of the Spark Session, which generates an execution plan e.g. calculate the number of jobs, stages and tasks. It very rarely does computations, and if it _does_, it's probably the most likely candidate for a bottleneck. After the workers do their jobs, the Driver receives their output.
+
+- **Worker**: stfgf
+
+
+Suppose my aplication only counts the number of rows in a certain dataset. The Spark Session receives the information from my application and allocates the distribution of processing for each of the CPUs in my Executors (or Nodes).  Suppose I have 11 blue boxes to process. In order, it:
+
+1. Verifies if the code is compiled correctly;
+2. Creates an execution plan: checks the capacity and allocates work to the Worker nodes. If I have 4 CPUs in total, it allocates 3-3-3-1 blue boxes.
+3. Sends the taks and the distributed datasets (blue boxes) to the CPUs.
+4. Now it's time for the Workers to work. The task is performed and the blue boxes are counted: the count yields 3-3-3-1 (not blue boxes, just the information!).
+5. The Workers perform the *exchange* ritual, where the result from the counting is transferred to a single worker, simplyfing the output back to the Driver node.
+6. The selected Worker counts the results from all 4 CPUs and gets the final result: 11. Now it sends the info back to the Driver.
 
 
 <br>
