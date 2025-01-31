@@ -80,7 +80,81 @@ Suppose my aplication only counts the number of rows in a certain dataset. The S
 5. The Workers perform the *exchange* ritual, where the result from the counting is transferred to a single worker, simplyfing the output back to the Driver node.
 6. The selected Worker counts the results from all 4 CPUs and gets the final result: 11. Now it sends the info back to the Driver.
 
+<br>
 
+<div align="center">
+
+## $\color{goldenrod}{\textrm{1.3 - Jobs, Stages, Tasks}}$
+
+</div>
+
+Suppose you run the spark command `spark.run.csv("path").count()`; this action is divided in jobs, stages and tasks:
+
+
+- each **method** comprises a **job**, so 3 jobs so far.
+- you'll have 1 + a **stage** for each **widely transformation** (the ones that have to act on the entire dataset e.g. Order By or Group By).
+- tasks are based on our dataset and the number of slots (CPUs) we have available.
+
+---
+
+_Interview quastion_: you have 2 widely transformation, 1 action (read()), and your dataset is 2GB. Standard partition is 128MB. How many jobs, stages and tasks? i.e. you're performing `spark.read().orderby().agg()`
+
+- 1 action = 1 job
+- 1 stage (basis) + 1 stage (order by) + 1 stage (agg) = 3
+- tasks = 2GB / 128MB = 2048 MB / 128MB = ~16 GB.
+
+---
+
+_Interview quastion_: if you only increase the dataset, what changes? Jobs, stages or tasks?
+
+- Only tasks (you're distributing more partitions)
+
+---
+
+<div align="center">
+
+## $\color{goldenrod}{\textrm{1.4 - Pyspark Dataframe API}}$
+
+</div>
+
+We can, locally, initiate a Spark session with
+```
+from pyspark.sql import SparkSession
+
+my_spark = SparkSession.builder.appName('test').getOrCreate()
+```
+
+Running `my_spark.session_id` will yield the id of this object. Databricks, however, automatically creates a Spark session for us, stored in the variable "spark". Running `spark.session_id` will yield exactly the same id.
+
+With some data imported into the Volume, we can access it through usual metods e.g. `df = spark.read.csv("path/example.csv")`. `df.display` or `df.printSchema()` will output garbage if we don't set options such as `header=True, inferSchema=True`, which is usually done manually in databricks.
+
+There are 3 ways of visualizing data:
+- df.show()
+- df.head() / df.tail()
+- df.display()
+
+Show, head and tail are what's usually called terminal output, or stdout. We can improve "show" a little bit with arguments such as truncate=False, vertical=True, n=1, etc.
+
+Display is optimized for databricks, _and it's dynamic_, you can filter, manipulate, etc. Nothing stops us doing something like `df.limit(5).display() to emulated the head.
+
+There are similarities with libraries such as pandas. For example, we can run `df.describe().display()` to yield some basic descriptive statistics. Or we can use syntax like `df[['first_name']].display()` to filter the dataset, remembering that the display is only used to materialize the results.
+
+We can - and should - also leverage the use of functions:
+```
+from pyspark.sql.functions import col, concat, lit
+
+df_with_fullName = df.withColumn('fullName', concat(col('first_name'), lit(' '), col('last_name'))).display()
+```
+
+Notice that we can bring up columns in different ways, like dot notation of the declarative col function. We can assign the operation to a new variable, and thanks to spark`s _lazy evaluation`, we can run without any in-memory processing.
+
+We can rename the column with `df_renamed_full_name = df_with_fullName.withColumnRenamed('fullName','full_name')` and materialize the operation with `df_renamed_full_name.display()`. Or we can drop the column with `df = df_renamed_full_name.drop('full_name')`, reverting back to the original dataframe.
+
+Filtering is always useful: `df.filter("salary >= 10000").display()` or even `df.filter(df.salary >= 10000).display()`. df.where() also works, for those more SQL oriented.
+
+And so is concatenating transformations: `df.filter(df.salary >= 10000).select('first_name', 'age').display()`
+
+And so is negating expressions: suppose we find a daniel with `df.filter(df.first_name == 'Daniel').display()`, we can exclude it and find everyone else with `df.filter(~(df.first_name == 'Daniel')).display()`
 <br>
 <br>
 
